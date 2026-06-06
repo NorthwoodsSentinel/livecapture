@@ -1,0 +1,23 @@
+{
+  "name": "livecapture",
+  "module": "index.ts",
+  "type": "module",
+  "private": true,
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260606.1",
+    "@types/bun": "latest",
+    "wrangler": "^4.98.0"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "tail": "wrangler tail",
+    "d1:create": "wrangler d1 create livecapture-db",
+    "d1:migrate": "wrangler d1 migrations apply livecapture-db --remote",
+    "kv:create": "wrangler kv namespace create SESSION_STATE",
+    "r2:create": "wrangler r2 bucket create livecapture-raw-audio"
+  }
+}

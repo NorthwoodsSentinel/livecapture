@@ -1,0 +1,30 @@
+name = "livecapture"
+main = "src/index.ts"
+compatibility_date = "2026-06-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Routes — finalize after CF Access policy is in place.
+# routes = [
+#   { pattern = "capture.northwoodssentinel.com/*", custom_domain = true }
+# ]
+
+# Cloudflare bindings
+[[r2_buckets]]
+binding = "RAW_AUDIO"
+bucket_name = "livecapture-raw-audio"
+
+[[d1_databases]]
+binding = "CAPTURE_DB"
+database_name = "livecapture-db"
+database_id = "PLACEHOLDER_RUN_WRANGLER_D1_CREATE"
+
+[[kv_namespaces]]
+binding = "SESSION_STATE"
+id = "PLACEHOLDER_RUN_WRANGLER_KV_CREATE"
+
+# Workers AI for default transcription path
+[ai]
+binding = "AI"
+
+[vars]
+ACCESS_AUD = "PLACEHOLDER_SET_AFTER_CF_ACCESS_POLICY"
