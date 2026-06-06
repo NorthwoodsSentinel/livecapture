@@ -16,11 +16,11 @@ bucket_name = "livecapture-raw-audio"
 [[d1_databases]]
 binding = "CAPTURE_DB"
 database_name = "livecapture-db"
-database_id = "PLACEHOLDER_RUN_WRANGLER_D1_CREATE"
+database_id = "87f678d6-725f-4c55-87a6-9f2812f76fbb"
 
 [[kv_namespaces]]
 binding = "SESSION_STATE"
-id = "PLACEHOLDER_RUN_WRANGLER_KV_CREATE"
+id = "057b2beb59f5419d8397c0d60a34a77f"
 
 # Workers AI for default transcription path
 [ai]
