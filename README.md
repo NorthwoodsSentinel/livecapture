@@ -72,14 +72,37 @@ If any of these working assumptions is wrong, change it before code goes too far
 
 - [x] Repo scaffold (`bun init`, TypeScript strict, `wrangler.toml` skeleton)
 - [x] Data model in `src/types.ts`
-- [x] Minimal `/health` route on the Worker
-- [ ] R2 bucket + D1 schema
-- [ ] `/ingest` route accepting audio chunks
-- [ ] Workers AI Whisper transcription handler
-- [ ] `/read` query surface
+- [x] R2 bucket + D1 schema + KV namespace provisioned in CF tenant
+- [x] `/ingest` route accepting audio chunks (auth'd; idempotent on `(session_id, sequence)`)
+- [x] Workers AI Whisper transcription handler (fired via `ctx.waitUntil`; sensitive tier defers to local Whisper)
+- [x] `/read` query surface — `/read/current`, `/read/sessions`, `/read/sessions/:id`, `/read/search`
+- [x] Session lifecycle — `POST /sessions/:id/end`
+- [x] Worker deployed to `https://livecapture.robert-chuvala.workers.dev`
+- [x] Smoke tests passing (health, auth, ingest, idempotency, read, end, search)
+- [x] Ingest bearer token stored in 1P `Fleet-Shared/livecapture-ingest-token`
 - [ ] Capture client (Windows PowerShell MVP)
-- [ ] CF Access policy + service-token in 1Password
+- [ ] CF Access policy + service-token (so the Worker isn't on workers.dev with bearer only)
+- [ ] Custom domain `capture.northwoodssentinel.com`
 - [ ] Fleet read MCP tool on daemon
+- [ ] Local-Whisper pickup pipeline for sensitive-tier chunks
+
+## API surface (current)
+
+| Method | Path | Auth | Purpose |
+|---|---|---|---|
+| GET | `/health` | none | Liveness + binding presence |
+| POST | `/ingest?session_id=…&sequence=…&mime=…&duration_ms=…` | Bearer | Accept audio chunk; create session on first chunk via `X-Session-*` headers |
+| POST | `/sessions/:id/end` | Bearer | Close a session and clear KV pointer if it matches |
+| GET | `/read/current?limit=N` | Bearer | Active session + most recent N segments |
+| GET | `/read/sessions?limit=N` | Bearer | List recent sessions |
+| GET | `/read/sessions/:id` | Bearer | Single session + all segments |
+| GET | `/read/search?q=…&limit=N` | Bearer | LIKE-substring search across transcript text |
+
+Required headers on first chunk of a new session:
+- `X-Session-Label` (free-text)
+- `X-Session-Sensitivity` (`public` | `work` | `sensitive`)
+- `X-Session-Consented` (`true`/`1` if other party knows)
+- `X-Client-Id` (capture host identifier)
 
 ## Sovereignty discipline (carry-forward from credentials doctrine)
 
