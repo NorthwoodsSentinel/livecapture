@@ -7,6 +7,7 @@ import type {
   TranscriptSegment,
   ActiveSessionPointer,
   SensitivityTier,
+  TranscriptionPreference,
 } from "./types";
 
 export class HttpError extends Error {
@@ -51,7 +52,7 @@ function mimeToExt(mime: string): string {
 // ── D1 helpers ───────────────────────────────────────────────────────────────
 
 const sessionCols =
-  "id, label, sensitivity, consented_recording, client_id, started_at, ended_at, status, notes";
+  "id, label, sensitivity, transcription_preference, consented_recording, client_id, started_at, ended_at, status, notes";
 
 export async function getSession(db: D1Database, id: string): Promise<CaptureSession | null> {
   const row = await db
@@ -64,13 +65,14 @@ export async function getSession(db: D1Database, id: string): Promise<CaptureSes
 export async function insertSession(db: D1Database, s: CaptureSession): Promise<void> {
   await db
     .prepare(
-      `INSERT INTO capture_sessions (id, label, sensitivity, consented_recording, client_id, started_at, ended_at, status, notes)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO capture_sessions (id, label, sensitivity, transcription_preference, consented_recording, client_id, started_at, ended_at, status, notes)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .bind(
       s.id,
       s.label,
       s.sensitivity,
+      s.transcription_preference,
       s.consented_recording ? 1 : 0,
       s.client_id,
       s.started_at,
@@ -247,22 +249,25 @@ export async function getAudio(bucket: R2Bucket, key: string): Promise<ArrayBuff
   return obj.arrayBuffer();
 }
 
-// ── Sensitivity → transcription path policy ──────────────────────────────────
+// ── Transcription engine policy ──────────────────────────────────────────────
+//
+// Doctrine (per README "Doctrine refinement (2026-06-06)"): the principal
+// chooses per session whether hosted models inside their own tenant may run.
+// Engine selection is driven by `transcription_preference`, not by sensitivity.
+// Sensitivity still drives retention, sharing, and audit posture upstream.
 
-export function transcriptionEngineFor(tier: SensitivityTier): "workers-ai" | "local-whisper" | null {
-  switch (tier) {
-    case "public":
-    case "work":
-      return "workers-ai";
-    case "sensitive":
-      return "local-whisper"; // marker; Worker does NOT call AI for this tier
-    default:
-      return null;
-  }
+export function transcriptionEngineFor(
+  preference: TranscriptionPreference,
+): "workers-ai" | "local-whisper" {
+  return preference === "local-only" ? "local-whisper" : "workers-ai";
 }
 
 export function isValidSensitivity(s: unknown): s is SensitivityTier {
   return s === "public" || s === "work" || s === "sensitive";
+}
+
+export function isValidTranscriptionPreference(s: unknown): s is TranscriptionPreference {
+  return s === "hosted-ok" || s === "local-only";
 }
 
 // ── Row-to-object converters ─────────────────────────────────────────────────
@@ -271,6 +276,7 @@ interface RawSession {
   id: string;
   label: string;
   sensitivity: string;
+  transcription_preference: string;
   consented_recording: number;
   client_id: string;
   started_at: string;
@@ -309,6 +315,7 @@ function rowToSession(r: RawSession): CaptureSession {
     id: r.id,
     label: r.label,
     sensitivity: r.sensitivity as SensitivityTier,
+    transcription_preference: r.transcription_preference as TranscriptionPreference,
     consented_recording: r.consented_recording === 1,
     client_id: r.client_id,
     started_at: r.started_at,

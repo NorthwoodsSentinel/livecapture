@@ -80,7 +80,8 @@ If any of these working assumptions is wrong, change it before code goes too far
 - [x] Data model in `src/types.ts`
 - [x] R2 bucket + D1 schema + KV namespace provisioned in CF tenant
 - [x] `/ingest` route accepting audio chunks (auth'd; idempotent on `(session_id, sequence)`)
-- [x] Workers AI Whisper transcription handler (fired via `ctx.waitUntil`; current code treats `sensitive` as defer-to-local — refactor pending to match the principal-decides doctrine refinement)
+- [x] Workers AI Whisper transcription handler (fired via `ctx.waitUntil`)
+- [x] Principal-decides transcription preference — `transcription_preference` column on `capture_sessions`, `X-Session-Transcription-Preference` header, engine selection gates on preference not sensitivity tier
 - [x] `/read` query surface — `/read/current`, `/read/sessions`, `/read/sessions/:id`, `/read/search`
 - [x] Session lifecycle — `POST /sessions/:id/end`
 - [x] Worker deployed to `https://livecapture.robert-chuvala.workers.dev`
@@ -91,7 +92,6 @@ If any of these working assumptions is wrong, change it before code goes too far
 - [ ] Custom domain `capture.northwoodssentinel.com`
 - [ ] Fleet read MCP tool on daemon
 - [ ] Local-Whisper pickup pipeline (for sessions the principal flags `local-only`)
-- [ ] Code-doctrine alignment: add `transcription_preference` to session (`hosted-ok` default | `local-only`); refactor `transcribe.ts` + `lib.transcriptionEngineFor` to gate on that field rather than on sensitivity tier alone
 
 ## API surface (current)
 
@@ -110,6 +110,9 @@ Required headers on first chunk of a new session:
 - `X-Session-Sensitivity` (`public` | `work` | `sensitive`)
 - `X-Session-Consented` (`true`/`1` if other party knows)
 - `X-Client-Id` (capture host identifier)
+
+Optional header on first chunk:
+- `X-Session-Transcription-Preference` (`hosted-ok` default | `local-only`) — principal's choice about hosted-model processing inside their CF tenant. See [Data shape](#data-shape-sovereignty-graded-sessions). Independent of sensitivity tier.
 
 ## Sovereignty discipline (carry-forward from credentials doctrine)
 

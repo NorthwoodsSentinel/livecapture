@@ -8,6 +8,16 @@ export type SensitivityTier = "public" | "work" | "sensitive";
 
 export type TranscriptionPath = "workers-ai" | "local-whisper" | "external-api";
 
+/**
+ * Principal's per-session decision about hosted-model processing inside their
+ * own Cloudflare tenant. Independent of sensitivity tier — see the README's
+ * "Doctrine refinement (2026-06-06)" section for the framing.
+ *
+ *   - `hosted-ok`  → Workers AI may process audio. Default.
+ *   - `local-only` → Defer transcription to the local-Whisper pickup pipeline.
+ */
+export type TranscriptionPreference = "hosted-ok" | "local-only";
+
 export type SessionStatus = "open" | "closed" | "archived";
 
 export interface CaptureSession {
@@ -15,8 +25,14 @@ export interface CaptureSession {
   id: string;
   /** Human-friendly label set at session-start ("wally-call", "racine-roadmap"). */
   label: string;
-  /** Drives transcription path, retention, sharing. Set at session-start, immutable. */
+  /** Drives retention, sharing, audit posture. Set at session-start, immutable. */
   sensitivity: SensitivityTier;
+  /**
+   * Principal's choice about hosted-model processing inside their CF tenant.
+   * Independent of sensitivity — the tenant boundary is the hard floor; this
+   * field decides whether hosted models inside the boundary get to run.
+   */
+  transcription_preference: TranscriptionPreference;
   /** Whether the other party was disclosed-to. Operator's declaration. */
   consented_recording: boolean;
   /** Capture client identifier (host + process). */

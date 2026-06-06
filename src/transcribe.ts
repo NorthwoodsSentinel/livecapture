@@ -1,4 +1,4 @@
-import type { Env, AudioChunk, SensitivityTier, TranscriptSegment } from "./types";
+import type { Env, AudioChunk, TranscriptionPreference, TranscriptSegment } from "./types";
 import {
   uuid,
   nowIso,
@@ -20,17 +20,19 @@ const WHISPER_MODEL = "@cf/openai/whisper";
 /**
  * Transcribe a chunk via Workers AI Whisper and persist segments to D1.
  * Called via ctx.waitUntil from /ingest — fire-and-forget.
- * Sensitive-tier callers MUST NOT invoke this; they defer to local-Whisper.
+ *
+ * Engine selection is gated on the session's transcription_preference (per the
+ * "Doctrine refinement (2026-06-06)" framing in README). local-only sessions
+ * MUST NOT reach this function; defense-in-depth refusal here catches any
+ * future caller that forgets the dispatch gate.
  */
 export async function transcribeChunk(
   env: Env,
   chunk: AudioChunk,
-  sensitivity: SensitivityTier,
+  preference: TranscriptionPreference,
 ): Promise<void> {
-  if (sensitivity === "sensitive") {
-    // Defense-in-depth: sensitive tier should never reach this function, but if
-    // a future caller forgets, refuse rather than leaking audio to a hosted model.
-    console.warn(`[transcribe] refused sensitive chunk ${chunk.id} — local-whisper only`);
+  if (preference === "local-only") {
+    console.warn(`[transcribe] refused chunk ${chunk.id} — session preference is local-only`);
     return;
   }
 

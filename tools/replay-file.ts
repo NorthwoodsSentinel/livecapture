@@ -24,6 +24,7 @@ interface Args {
   path: string;
   label: string;
   sensitivity: "public" | "work" | "sensitive";
+  preference: "hosted-ok" | "local-only";
   consented: boolean;
   chunkSec: number;
   endSession: boolean;
@@ -33,7 +34,7 @@ interface Args {
 function parseArgs(argv: string[]): Args {
   const positional = argv.filter((a) => !a.startsWith("--"));
   const path = positional[0];
-  if (!path) die(`usage: replay-file <audio-path> [--label NAME] [--sensitivity work|public|sensitive] [--consented true|false] [--chunk-sec N] [--end-session] [--dry-run]`);
+  if (!path) die(`usage: replay-file <audio-path> [--label NAME] [--sensitivity work|public|sensitive] [--preference hosted-ok|local-only] [--consented true|false] [--chunk-sec N] [--end-session] [--dry-run]`);
   const flag = (k: string) => argv.includes(`--${k}`);
   const val = (k: string, def: string) => {
     const i = argv.indexOf(`--${k}`);
@@ -43,6 +44,10 @@ function parseArgs(argv: string[]): Args {
   if (sensitivity !== "public" && sensitivity !== "work" && sensitivity !== "sensitive") {
     die(`--sensitivity must be public|work|sensitive (got ${sensitivity})`);
   }
+  const preference = val("preference", "hosted-ok");
+  if (preference !== "hosted-ok" && preference !== "local-only") {
+    die(`--preference must be hosted-ok|local-only (got ${preference})`);
+  }
   const chunkSec = Number(val("chunk-sec", "20"));
   if (!Number.isFinite(chunkSec) || chunkSec < 5 || chunkSec > 60) {
     die(`--chunk-sec must be 5..60 (got ${chunkSec})`);
@@ -51,6 +56,7 @@ function parseArgs(argv: string[]): Args {
     path,
     label: val("label", `replay-${path.split("/").pop() ?? "file"}-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}`),
     sensitivity,
+    preference,
     consented: val("consented", "false") === "true",
     chunkSec,
     endSession: flag("end-session"),
@@ -166,14 +172,15 @@ async function main(): Promise<void> {
   console.log(`  session_id:  ${sessionId}`);
   console.log(`  label:       ${args.label}`);
   console.log(`  sensitivity: ${args.sensitivity}`);
+  console.log(`  preference:  ${args.preference}`);
   console.log(`  target:      ${url}/ingest`);
   if (args.dryRun) {
     console.log(`  (dry-run: no chunks will be sent)`);
     return;
   }
-  if (args.sensitivity === "sensitive") {
-    console.warn(`  WARNING: sensitivity=sensitive — transcription will NOT happen via Workers AI.`);
-    console.warn(`           Chunks will be stored in R2 + D1 and queued for local-Whisper pickup.`);
+  if (args.preference === "local-only") {
+    console.warn(`  NOTE: preference=local-only — Workers AI will NOT transcribe these chunks.`);
+    console.warn(`        Audio + metadata are stored; local-Whisper pickup pipeline will process them.`);
   }
 
   const workDir = await mkdtemp(join(tmpdir(), "livecapture-replay-"));
@@ -188,6 +195,7 @@ async function main(): Promise<void> {
     const baseHeaders: Record<string, string> = {
       "x-session-label": args.label,
       "x-session-sensitivity": args.sensitivity,
+      "x-session-transcription-preference": args.preference,
       "x-session-consented": args.consented ? "true" : "false",
       "x-client-id": "replay-file",
     };

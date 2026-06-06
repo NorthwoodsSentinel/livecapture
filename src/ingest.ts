@@ -1,4 +1,4 @@
-import type { Env, CaptureSession, AudioChunk, SensitivityTier } from "./types";
+import type { Env, CaptureSession, AudioChunk } from "./types";
 import {
   HttpError,
   uuid,
@@ -16,6 +16,7 @@ import {
   clearActivePointer,
   transcriptionEngineFor,
   isValidSensitivity,
+  isValidTranscriptionPreference,
 } from "./lib";
 import { transcribeChunk } from "./transcribe";
 
@@ -58,6 +59,7 @@ async function ensureSession(env: Env, request: Request, q: IngestQuery): Promis
   const sensitivityRaw = request.headers.get("x-session-sensitivity");
   const consented = request.headers.get("x-session-consented");
   const client_id = request.headers.get("x-client-id");
+  const preferenceRaw = request.headers.get("x-session-transcription-preference") ?? "hosted-ok";
 
   if (!label || !sensitivityRaw || !client_id) {
     throw new HttpError(400, {
@@ -68,11 +70,18 @@ async function ensureSession(env: Env, request: Request, q: IngestQuery): Promis
   if (!isValidSensitivity(sensitivityRaw)) {
     throw new HttpError(400, { error: "bad_sensitivity", detail: "must be public|work|sensitive" });
   }
+  if (!isValidTranscriptionPreference(preferenceRaw)) {
+    throw new HttpError(400, {
+      error: "bad_transcription_preference",
+      detail: "X-Session-Transcription-Preference must be hosted-ok|local-only",
+    });
+  }
 
   const session: CaptureSession = {
     id: q.session_id,
     label,
     sensitivity: sensitivityRaw,
+    transcription_preference: preferenceRaw,
     consented_recording: consented === "true" || consented === "1",
     client_id,
     started_at: nowIso(),
@@ -145,18 +154,18 @@ export async function handleIngest(
   };
   await insertChunk(env.CAPTURE_DB, chunk);
 
-  // Transcription policy by sensitivity tier.
-  const engine = transcriptionEngineFor(session.sensitivity);
+  // Transcription policy: gated on the principal's per-session preference.
+  // Sensitivity tier drives retention/sharing/audit, not engine selection.
+  const engine = transcriptionEngineFor(session.transcription_preference);
   let transcriptionStatus: string;
   if (engine === "workers-ai") {
     // Fire-and-forget transcription; the ingest response doesn't block on it.
-    ctx.waitUntil(transcribeChunk(env, chunk, session.sensitivity));
+    ctx.waitUntil(transcribeChunk(env, chunk, session.transcription_preference));
     transcriptionStatus = "queued_workers_ai";
-  } else if (engine === "local-whisper") {
-    // Sensitive tier — Worker does NOT transcribe. Local-Whisper pipeline picks up via the unprocessed-chunks query.
-    transcriptionStatus = "deferred_local_whisper";
   } else {
-    transcriptionStatus = "no_engine_for_tier";
+    // local-only — Worker does NOT transcribe. Local-Whisper pipeline picks up
+    // via an unprocessed-chunks query against D1.
+    transcriptionStatus = "deferred_local_whisper";
   }
 
   return Response.json(
@@ -169,6 +178,7 @@ export async function handleIngest(
       session: {
         id: session.id,
         sensitivity: session.sensitivity,
+        transcription_preference: session.transcription_preference,
       },
     },
     { status: 201 },
