@@ -191,27 +191,38 @@ export async function countSegments(db: D1Database, sessionId: string): Promise<
   return row?.c ?? 0;
 }
 
+// FTS5 takes raw queries with magic chars (-, ", *, AND, OR, NEAR…). Wrap user
+// input in double quotes so it's treated as a phrase; escape any internal quotes
+// by doubling. This loses the power-query syntax for users who want it, but
+// gains safety against accidental MATCH-syntax parse errors on natural queries.
+function ftsSafeQuery(q: string): string {
+  return `"${q.replace(/"/g, '""')}"`;
+}
+
 export async function searchSegments(
   db: D1Database,
   query: string,
   limit: number,
-): Promise<Array<TranscriptSegment & { session_label: string; session_started_at: string }>> {
+): Promise<Array<TranscriptSegment & { session_label: string; session_started_at: string; bm25_rank: number }>> {
   const res = await db
     .prepare(
       `SELECT s.id, s.session_id, s.chunk_id, s.sequence, s.start_ms, s.end_ms, s.text, s.speaker, s.engine, s.confidence, s.transcribed_at,
-              cs.label AS session_label, cs.started_at AS session_started_at
-       FROM transcript_segments s
+              cs.label AS session_label, cs.started_at AS session_started_at,
+              fts.rank AS bm25_rank
+       FROM transcript_segments_fts fts
+       JOIN transcript_segments s ON s.id = fts.segment_id
        JOIN capture_sessions cs ON cs.id = s.session_id
-       WHERE s.text LIKE ?
-       ORDER BY cs.started_at DESC, s.sequence ASC
+       WHERE transcript_segments_fts MATCH ?
+       ORDER BY fts.rank
        LIMIT ?`,
     )
-    .bind(`%${query}%`, limit)
-    .all<RawSegment & { session_label: string; session_started_at: string }>();
+    .bind(ftsSafeQuery(query), limit)
+    .all<RawSegment & { session_label: string; session_started_at: string; bm25_rank: number }>();
   return (res.results ?? []).map((r) => ({
     ...rowToSegment(r),
     session_label: r.session_label,
     session_started_at: r.session_started_at,
+    bm25_rank: r.bm25_rank,
   }));
 }
 

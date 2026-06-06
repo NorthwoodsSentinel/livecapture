@@ -83,6 +83,7 @@ If any of these working assumptions is wrong, change it before code goes too far
 - [x] Workers AI Whisper transcription handler (fired via `ctx.waitUntil`)
 - [x] Principal-decides transcription preference — `transcription_preference` column on `capture_sessions`, `X-Session-Transcription-Preference` header, engine selection gates on preference not sensitivity tier
 - [x] Whisper hallucination filter on read endpoints (`?include_hallucinations=true` to bypass)
+- [x] FTS5 full-text search with bm25 ranking — migration 0003 added `transcript_segments_fts` virtual table + sync triggers, backfilled existing rows
 - [x] `/read` query surface — `/read/current`, `/read/sessions`, `/read/sessions/:id`, `/read/search`
 - [x] Session lifecycle — `POST /sessions/:id/end`
 - [x] Worker deployed to `https://livecapture.robert-chuvala.workers.dev`
@@ -104,7 +105,7 @@ If any of these working assumptions is wrong, change it before code goes too far
 | GET | `/read/current?limit=N` | Bearer | Active session + most recent N segments (hallucination filter on by default) |
 | GET | `/read/sessions?limit=N` | Bearer | List recent sessions |
 | GET | `/read/sessions/:id` | Bearer | Single session + all segments (hallucination filter on by default) |
-| GET | `/read/search?q=…&limit=N` | Bearer | LIKE-substring search across transcript text (hallucination filter on by default) |
+| GET | `/read/search?q=…&limit=N` | Bearer | FTS5 full-text search across transcripts, bm25-ranked (hallucination filter on by default) |
 
 All read endpoints accept `?include_hallucinations=true` to bypass the filter and return raw Whisper output. Filter drops known artifacts (short fragments, repeated-word loops, percentage noise, Korean-filler silence emissions). Non-English content is preserved.
 

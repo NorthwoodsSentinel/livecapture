@@ -108,8 +108,9 @@ export async function handleReadSearch(request: Request, env: Env): Promise<Resp
     : partitionSegmentsByHallucination(rawHits);
   const hits = kept.slice(0, limit);
 
-  const body: SearchResponse = {
+  const body: SearchResponse & { ranked_by?: string } = {
     query: q,
+    ranked_by: "bm25",
     matches: hits.map((h) => ({
       segment: {
         id: h.id,
