@@ -46,11 +46,17 @@ Windows host                  Cloudflare tenant              Fleet
 
 A `session` is one conversation. It carries a sensitivity tier that drives every downstream decision (transcription path, retention, sharing). Tiers:
 
-- **`public`** — meetings the other party knows are recorded; talks, podcasts. External transcription API allowed.
-- **`work`** — internal meetings, customer calls. Workers AI default; local Whisper option.
-- **`sensitive`** — privileged conversations (legal, medical, intimate). Local Whisper **only**. Never leaves the boundary.
+- **`public`** — meetings the other party knows are recorded; talks, podcasts. Third-party APIs outside the principal's CF account allowed.
+- **`work`** — internal meetings, customer calls. Workers AI (in-tenant hosted) default. Local-Whisper available if the principal prefers per session.
+- **`sensitive`** — privileged conversations (legal, medical, intimate, personal-corpus building). **Principal-decides per session.** Workers AI inside the principal's own CF tenant is permitted by default; local-Whisper required only if the principal opts for it. Third-party APIs are never used regardless of preference.
 
-Sensitivity is declared at session-start by the capture client (user picks before Record). Default = `work`. Sensitive mode never falls back to external on any failure path — it fails closed, not open.
+Sensitivity is declared at session-start by the capture client. Default = `work`. The hard floor across all tiers: nothing sensitive crosses to a third-party account, period. Inside the tenant boundary, the principal chooses whether a hosted model gets to touch the audio.
+
+### Doctrine refinement (2026-06-06)
+
+The first draft of this doctrine treated `sensitive` as "local-Whisper only, fails closed." A real intimate-tier session the same day exposed an unstated assumption: that hosted models were equivalent to crossing the tenant boundary. They aren't. Workers AI runs inside the principal's own Cloudflare account; the audio doesn't transit a third party. The discipline is **principal-decides** about hosted-model processing inside their own tenant, not categorical refusal. The hard line stays at the tenant boundary; everything inside is the principal's call per session.
+
+This is the same shape as the broader sovereignty thesis applied at finer grain — substrate sovereignty isn't about refusing capable infrastructure inside your tenant, it's about owning the tenant and deciding inside it.
 
 ## Open architectural decisions
 
@@ -74,7 +80,7 @@ If any of these working assumptions is wrong, change it before code goes too far
 - [x] Data model in `src/types.ts`
 - [x] R2 bucket + D1 schema + KV namespace provisioned in CF tenant
 - [x] `/ingest` route accepting audio chunks (auth'd; idempotent on `(session_id, sequence)`)
-- [x] Workers AI Whisper transcription handler (fired via `ctx.waitUntil`; sensitive tier defers to local Whisper)
+- [x] Workers AI Whisper transcription handler (fired via `ctx.waitUntil`; current code treats `sensitive` as defer-to-local — refactor pending to match the principal-decides doctrine refinement)
 - [x] `/read` query surface — `/read/current`, `/read/sessions`, `/read/sessions/:id`, `/read/search`
 - [x] Session lifecycle — `POST /sessions/:id/end`
 - [x] Worker deployed to `https://livecapture.robert-chuvala.workers.dev`
@@ -84,7 +90,8 @@ If any of these working assumptions is wrong, change it before code goes too far
 - [ ] CF Access policy + service-token (so the Worker isn't on workers.dev with bearer only)
 - [ ] Custom domain `capture.northwoodssentinel.com`
 - [ ] Fleet read MCP tool on daemon
-- [ ] Local-Whisper pickup pipeline for sensitive-tier chunks
+- [ ] Local-Whisper pickup pipeline (for sessions the principal flags `local-only`)
+- [ ] Code-doctrine alignment: add `transcription_preference` to session (`hosted-ok` default | `local-only`); refactor `transcribe.ts` + `lib.transcriptionEngineFor` to gate on that field rather than on sensitivity tier alone
 
 ## API surface (current)
 
@@ -107,7 +114,7 @@ Required headers on first chunk of a new session:
 ## Sovereignty discipline (carry-forward from credentials doctrine)
 
 - Audio of third-party voices is captured under per-conversation consent that the user declares at session-start. Recording without disclosure is the user's responsibility; the system does not pretend to be a consent-management layer.
-- Sensitive-tier never leaves the principal's tenant. Local Whisper or no transcription.
+- **Tenant boundary is the hard line.** Nothing sensitive crosses to a third-party account. Inside the principal's own CF tenant, hosted Workers AI is permitted by default; the principal opts into `local-only` per session when they want local-Whisper instead. The substrate is sovereign; the principal chooses inside it.
 - Credentials follow the `credentials-via-1password-doctrine` from fleet-bridge: 1P vault, op CLI, session-init populates env, biometric/YubiKey unlock.
 - Verification of credential install: length + first-N-chars + HTTP probe code. Never echo raw values.
 
