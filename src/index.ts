@@ -7,6 +7,11 @@ import {
   handleReadSessionById,
   handleReadSearch,
 } from "./read";
+import {
+  handleLocalPickupQueue,
+  handleLocalPickupAudio,
+  handleLocalPickupSegments,
+} from "./local-pickup";
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -55,6 +60,12 @@ async function route(request: Request, env: Env, ctx: ExecutionContext): Promise
   const sessionMatch = path.match(/^\/read\/sessions\/([^/]+)$/);
   if (sessionMatch) return handleReadSessionById(request, env, sessionMatch[1]!);
   if (path === "/read/search") return handleReadSearch(request, env);
+
+  // Local-Whisper pickup pipeline (separate auth token).
+  if (path === "/local-pickup/queue") return handleLocalPickupQueue(request, env);
+  if (path === "/local-pickup/segments") return handleLocalPickupSegments(request, env);
+  const audioMatch = path.match(/^\/local-pickup\/audio\/([^/]+)$/);
+  if (audioMatch) return handleLocalPickupAudio(request, env, audioMatch[1]!);
 
   return Response.json({ error: "not_found", path }, { status: 404 });
 }

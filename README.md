@@ -84,6 +84,7 @@ If any of these working assumptions is wrong, change it before code goes too far
 - [x] Principal-decides transcription preference — `transcription_preference` column on `capture_sessions`, `X-Session-Transcription-Preference` header, engine selection gates on preference not sensitivity tier
 - [x] Whisper hallucination filter on read endpoints (`?include_hallucinations=true` to bypass)
 - [x] FTS5 full-text search with bm25 ranking — migration 0003 added `transcript_segments_fts` virtual table + sync triggers, backfilled existing rows
+- [x] Local-Whisper pickup pipeline (Worker side) — `GET /local-pickup/queue`, `GET /local-pickup/audio/:chunk_id`, `POST /local-pickup/segments`; separate `LOCAL_PICKUP_TOKEN` bearer; design doc at `docs/local-whisper-pipeline.md`. Runner process (Surface Pro Whisper) not yet built.
 - [x] `/read` query surface — `/read/current`, `/read/sessions`, `/read/sessions/:id`, `/read/search`
 - [x] Session lifecycle — `POST /sessions/:id/end`
 - [x] Worker deployed to `https://livecapture.robert-chuvala.workers.dev`

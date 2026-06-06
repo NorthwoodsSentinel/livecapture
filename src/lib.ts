@@ -148,6 +148,42 @@ export async function nextSegmentSequence(db: D1Database, sessionId: string): Pr
   return row?.next ?? 0;
 }
 
+/**
+ * Chunks belonging to local-only sessions that have no transcript segment yet.
+ * The local-Whisper runner polls this to find work.
+ */
+export async function untranscribedLocalChunks(
+  db: D1Database,
+  limit: number,
+): Promise<AudioChunk[]> {
+  const res = await db
+    .prepare(
+      `SELECT c.id, c.session_id, c.sequence, c.r2_key, c.size_bytes, c.duration_ms, c.recorded_at, c.mime_type
+       FROM audio_chunks c
+       JOIN capture_sessions s ON s.id = c.session_id
+       LEFT JOIN transcript_segments t ON t.chunk_id = c.id
+       WHERE s.transcription_preference = 'local-only'
+         AND t.id IS NULL
+       ORDER BY c.recorded_at ASC
+       LIMIT ?`,
+    )
+    .bind(limit)
+    .all<RawChunk>();
+  return (res.results ?? []).map(rowToChunk);
+}
+
+export async function segmentExistsForChunkAndSequence(
+  db: D1Database,
+  sessionId: string,
+  sequence: number,
+): Promise<boolean> {
+  const row = await db
+    .prepare(`SELECT 1 AS x FROM transcript_segments WHERE session_id = ? AND sequence = ?`)
+    .bind(sessionId, sequence)
+    .first<{ x: number }>();
+  return !!row;
+}
+
 export async function recentSegments(
   db: D1Database,
   sessionId: string,
