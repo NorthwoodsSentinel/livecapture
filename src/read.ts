@@ -9,7 +9,13 @@ import {
   listRecentSessions,
   allSegmentsFor,
   searchSegments,
+  partitionSegmentsByHallucination,
 } from "./lib";
+
+function includeHallucinations(url: URL): boolean {
+  const v = url.searchParams.get("include_hallucinations");
+  return v === "true" || v === "1";
+}
 
 export async function handleReadCurrent(request: Request, env: Env): Promise<Response> {
   requireBearer(request, env);
@@ -17,6 +23,7 @@ export async function handleReadCurrent(request: Request, env: Env): Promise<Res
 
   const url = new URL(request.url);
   const limit = clampInt(url.searchParams.get("limit"), 50, 1, 500);
+  const showAll = includeHallucinations(url);
 
   const ptr = await getActivePointer(env.SESSION_STATE);
   if (!ptr) {
@@ -25,13 +32,19 @@ export async function handleReadCurrent(request: Request, env: Env): Promise<Res
   }
 
   const session = await getSession(env.CAPTURE_DB, ptr.session_id);
-  const segs = session ? await recentSegments(env.CAPTURE_DB, session.id, limit) : [];
+  // Over-fetch so the post-filter still returns ~limit substantive segments.
+  const overLimit = showAll ? limit : Math.min(500, limit * 3);
+  const rawSegs = session ? await recentSegments(env.CAPTURE_DB, session.id, overLimit) : [];
   const total = session ? await countSegments(env.CAPTURE_DB, session.id) : 0;
+  const { kept, filtered } = showAll
+    ? { kept: rawSegs, filtered: [] }
+    : partitionSegmentsByHallucination(rawSegs);
 
-  const body: CurrentConversationResponse = {
+  const body: CurrentConversationResponse & { hallucinations_filtered?: number } = {
     session,
-    recent_segments: segs,
+    recent_segments: kept.slice(0, limit),
     segment_count_total: total,
+    hallucinations_filtered: showAll ? 0 : filtered.length,
   };
   return Response.json(body);
 }
@@ -54,11 +67,24 @@ export async function handleReadSessionById(
   requireBearer(request, env);
   if (request.method !== "GET") throw new HttpError(405, { error: "method_not_allowed", allow: "GET" });
 
+  const url = new URL(request.url);
+  const showAll = includeHallucinations(url);
+
   const session = await getSession(env.CAPTURE_DB, sessionId);
   if (!session) throw new HttpError(404, { error: "session_not_found" });
 
-  const segments = await allSegmentsFor(env.CAPTURE_DB, sessionId);
-  return Response.json({ session, segments, count: segments.length });
+  const rawSegments = await allSegmentsFor(env.CAPTURE_DB, sessionId);
+  const { kept, filtered } = showAll
+    ? { kept: rawSegments, filtered: [] }
+    : partitionSegmentsByHallucination(rawSegments);
+
+  return Response.json({
+    session,
+    segments: kept,
+    count: kept.length,
+    hallucinations_filtered: showAll ? 0 : filtered.length,
+    total_with_hallucinations: rawSegments.length,
+  });
 }
 
 export async function handleReadSearch(request: Request, env: Env): Promise<Response> {
@@ -68,12 +94,20 @@ export async function handleReadSearch(request: Request, env: Env): Promise<Resp
   const url = new URL(request.url);
   const q = url.searchParams.get("q") ?? "";
   const limit = clampInt(url.searchParams.get("limit"), 25, 1, 200);
+  const showAll = includeHallucinations(url);
 
   if (q.length < 2) {
     throw new HttpError(400, { error: "query_too_short", detail: "q must be at least 2 chars" });
   }
 
-  const hits = await searchSegments(env.CAPTURE_DB, q, limit);
+  // Over-fetch so the filter doesn't starve the visible result set.
+  const overLimit = showAll ? limit : Math.min(500, limit * 3);
+  const rawHits = await searchSegments(env.CAPTURE_DB, q, overLimit);
+  const { kept } = showAll
+    ? { kept: rawHits }
+    : partitionSegmentsByHallucination(rawHits);
+  const hits = kept.slice(0, limit);
+
   const body: SearchResponse = {
     query: q,
     matches: hits.map((h) => ({

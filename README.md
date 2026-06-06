@@ -82,6 +82,7 @@ If any of these working assumptions is wrong, change it before code goes too far
 - [x] `/ingest` route accepting audio chunks (auth'd; idempotent on `(session_id, sequence)`)
 - [x] Workers AI Whisper transcription handler (fired via `ctx.waitUntil`)
 - [x] Principal-decides transcription preference — `transcription_preference` column on `capture_sessions`, `X-Session-Transcription-Preference` header, engine selection gates on preference not sensitivity tier
+- [x] Whisper hallucination filter on read endpoints (`?include_hallucinations=true` to bypass)
 - [x] `/read` query surface — `/read/current`, `/read/sessions`, `/read/sessions/:id`, `/read/search`
 - [x] Session lifecycle — `POST /sessions/:id/end`
 - [x] Worker deployed to `https://livecapture.robert-chuvala.workers.dev`
@@ -100,10 +101,12 @@ If any of these working assumptions is wrong, change it before code goes too far
 | GET | `/health` | none | Liveness + binding presence |
 | POST | `/ingest?session_id=…&sequence=…&mime=…&duration_ms=…` | Bearer | Accept audio chunk; create session on first chunk via `X-Session-*` headers |
 | POST | `/sessions/:id/end` | Bearer | Close a session and clear KV pointer if it matches |
-| GET | `/read/current?limit=N` | Bearer | Active session + most recent N segments |
+| GET | `/read/current?limit=N` | Bearer | Active session + most recent N segments (hallucination filter on by default) |
 | GET | `/read/sessions?limit=N` | Bearer | List recent sessions |
-| GET | `/read/sessions/:id` | Bearer | Single session + all segments |
-| GET | `/read/search?q=…&limit=N` | Bearer | LIKE-substring search across transcript text |
+| GET | `/read/sessions/:id` | Bearer | Single session + all segments (hallucination filter on by default) |
+| GET | `/read/search?q=…&limit=N` | Bearer | LIKE-substring search across transcript text (hallucination filter on by default) |
+
+All read endpoints accept `?include_hallucinations=true` to bypass the filter and return raw Whisper output. Filter drops known artifacts (short fragments, repeated-word loops, percentage noise, Korean-filler silence emissions). Non-English content is preserved.
 
 Required headers on first chunk of a new session:
 - `X-Session-Label` (free-text)

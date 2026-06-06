@@ -215,6 +215,74 @@ export async function searchSegments(
   }));
 }
 
+// ── Whisper hallucination filter ─────────────────────────────────────────────
+//
+// Whisper produces predictable artifacts on near-silence: short language-of-the-
+// month gibberish ("ㅋㅋㅋㅋㅋ", "아..."), repeated-word loops ("BAM BAM BAM BAM"),
+// percentage fragments ("1.5%", "nd 1.5%"), pure punctuation. These pollute
+// search and read responses on real captures. Conservative defaults — only drop
+// when the heuristic is high-confidence. Non-English words alone do NOT count
+// as hallucination (Rob's partner speaks Finnish; substantive non-English
+// content must be preserved).
+
+const ARTIFACT_PATTERNS: RegExp[] = [
+  /^[\s]*nd\s+\d+(\.\d+)?%[\s]*$/i,
+  /^[\s]*\d+(\.\d+)?%[\s]*$/,
+  /^[\s]*\d+(\.\d+)?\s*cm(\s*x\s*\d+(\.\d+)?\s*cm)?[\s]*$/i,
+];
+
+const KOREAN_FILLER = /^[ㅋㅎㅠㅜ\s.,!?…]+$/;
+
+export function isLikelyHallucination(rawText: string): boolean {
+  const t = (rawText ?? "").trim();
+  if (t.length === 0) return true;
+  if (t.length < 4) return true;
+  if (/^[\W_]+$/.test(t)) return true;
+  if (KOREAN_FILLER.test(t)) return true;
+  for (const p of ARTIFACT_PATTERNS) if (p.test(t)) return true;
+  // Repeated-word loop detector: 4+ identical short tokens in a row.
+  const tokens = t.split(/\s+/);
+  if (tokens.length >= 4) {
+    let runLen = 1;
+    for (let i = 1; i < tokens.length; i++) {
+      if (tokens[i] === tokens[i - 1] && tokens[i]!.length <= 6) {
+        runLen++;
+        if (runLen >= 4) return true;
+      } else {
+        runLen = 1;
+      }
+    }
+  }
+  // Repeated-short-phrase detector: same 2-3-word phrase repeating 3+ times.
+  if (tokens.length >= 6) {
+    for (const span of [2, 3]) {
+      const phrases: string[] = [];
+      for (let i = 0; i + span <= tokens.length; i += span) {
+        phrases.push(tokens.slice(i, i + span).join(" "));
+      }
+      let phraseRun = 1;
+      for (let i = 1; i < phrases.length; i++) {
+        if (phrases[i] === phrases[i - 1]) {
+          phraseRun++;
+          if (phraseRun >= 3) return true;
+        } else {
+          phraseRun = 1;
+        }
+      }
+    }
+  }
+  return false;
+}
+
+export function partitionSegmentsByHallucination<T extends { text: string }>(
+  segs: T[],
+): { kept: T[]; filtered: T[] } {
+  const kept: T[] = [];
+  const filtered: T[] = [];
+  for (const s of segs) (isLikelyHallucination(s.text) ? filtered : kept).push(s);
+  return { kept, filtered };
+}
+
 // ── KV active-session pointer ────────────────────────────────────────────────
 
 const ACTIVE_KEY = "active_session";
