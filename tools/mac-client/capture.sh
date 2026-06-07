@@ -1,18 +1,45 @@
 #!/usr/bin/env bash
-# livecapture Mac client v0.2 (CeeCee, 2026-06-07) — API shape VERIFIED live (v0.1 smoke mac-client-smoke-1780862320; v0.2 adds final-sweep + clean end-session for parity with capture-windows.ps1)
-# Usage: capture.sh [device_index] [session_label] [sensitivity]
-# Devices (this Mac, enumerated 6/7): 0=ZoomAudioDevice 1=MacBook Air Microphone 2=Microsoft Teams Audio
-#   (re-enumerate on another Mac: ffmpeg -f avfoundation -list_devices true -i "")
+# livecapture Mac client v0.3 (CeeCee, 2026-06-07) — API shape VERIFIED live (v0.1 smoke mac-client-smoke-1780862320; v0.2 final-sweep + clean end-session; v0.3 device-by-NAME)
+# Usage: capture.sh [device_name] [session_label] [sensitivity]
+# v0.3: avfoundation indices SHUFFLE when devices come and go (XM6 connect reordered them 6/7;
+#   BlackHole install reordered them again post-reboot — the 16:32 smoke recorded a Zoom device's
+#   silence because of this). Select by exact NAME, resolved to an index at launch.
+#   List names: ffmpeg -f avfoundation -list_devices true -i ""
+#   Common picks: "MacBook Air Microphone" (mic only) · "BlackHole 2ch" (system audio only)
+#                 "NWS Aggregate" (mic+BlackHole = full call, both sides)
+#   A bare integer still works (passthrough, with a warning) for back-compat.
 # Token: export LIVECAPTURE_TOKEN from 1P Fleet-Shared/livecapture-ingest-token (op read) — Touch ID, operator-time.
 set -euo pipefail
-DEVICE="${1:-1}"
+DEVICE_ARG="${1:-MacBook Air Microphone}"
 LABEL="${2:-mac-capture}"
 SENSITIVITY="${3:-work}"   # public|work|sensitive (Worker-enforced enum)
+
+resolve_device() {  # $1 = exact device name → echoes current avfoundation audio index
+  local list line
+  list=$(ffmpeg -hide_banner -f avfoundation -list_devices true -i "" 2>&1 || true)
+  list=${list#*AVFoundation audio devices:}   # drop the video-device section
+  while IFS= read -r line; do
+    [[ $line =~ \[([0-9]+)\]\ (.+)$ ]] || continue
+    if [ "${BASH_REMATCH[2]}" = "$1" ]; then echo "${BASH_REMATCH[1]}"; return 0; fi
+  done <<<"$list"
+  return 1
+}
+
+if [[ $DEVICE_ARG =~ ^[0-9]+$ ]]; then
+  DEVICE="$DEVICE_ARG"
+  echo "WARNING: raw index $DEVICE — indices shuffle on device add/remove; prefer a name" >&2
+else
+  DEVICE=$(resolve_device "$DEVICE_ARG") || {
+    echo "device not found: '$DEVICE_ARG' — available audio devices:" >&2
+    ffmpeg -hide_banner -f avfoundation -list_devices true -i "" 2>&1 | sed -n '/audio devices/,$p' | grep -o '\[[0-9]*\] .*' >&2 || true
+    exit 1
+  }
+fi
 BASE="${LIVECAPTURE_BASE:-https://livecapture.robert-chuvala.workers.dev}"
 : "${LIVECAPTURE_TOKEN:?export LIVECAPTURE_TOKEN first (op read 'op://Fleet-Shared/livecapture-ingest-token/credential')}"
 SESSION="$(uuidgen | tr 'A-Z' 'a-z')"
 DIR="$HOME/NWS/livecapture-mac/spool/$SESSION"; mkdir -p "$DIR"
-echo "session=$SESSION device=$DEVICE label=$LABEL spool=$DIR"
+echo "session=$SESSION device=[$DEVICE] \"$DEVICE_ARG\" label=$LABEL spool=$DIR"
 
 # VERIFIED SHAPE: POST /ingest?session_id=&sequence=N ; first chunk carries session metadata headers
 upload_chunk() {  # $1 = wav path; returns curl's status

@@ -72,14 +72,25 @@ brew install ffmpeg
 # token
 export LIVECAPTURE_TOKEN="$(op read 'op://Fleet-Shared/livecapture-ingest-token/credential')"
 
-# find your device indices
+# see your device names
 ffmpeg -f avfoundation -list_devices true -i ""
+
+# system-audio capture: install BlackHole 2ch (https://existential.audio/blackhole/, reboot to
+# register the driver), then create the two composite devices (idempotent, persists across reboots):
+swift ./tools/mac-client/setup-audio-devices.swift
+#   NWS Multi-Output = speakers+BlackHole → set as system OUTPUT during calls (hear while capturing)
+#   NWS Aggregate    = mic+BlackHole      → capture INPUT for both sides of a call
+swift ./tools/mac-client/set-output.swift "NWS Multi-Output"      # flip output (volume keys won't work on it)
+swift ./tools/mac-client/set-output.swift "MacBook Air Speakers"  # flip back after the call
 ```
 
 **Run:**
 ```bash
-# device 1 = built-in mic on the reference Mac; device 2 = Teams virtual audio
-./tools/mac-client/capture.sh 1 "wally-followup" work
+# select device by exact NAME — avfoundation indices SHUFFLE when devices come/go
+# (a Bluetooth headset connecting or a driver install reorders them; a raw index can
+# silently land on the wrong device and record silence)
+./tools/mac-client/capture.sh "MacBook Air Microphone" "wally-followup" work  # mic only
+./tools/mac-client/capture.sh "NWS Aggregate" "wally-followup" work          # full call, both sides
 ```
 
 Ctrl+C ends the session cleanly — final sweep ships the last partial chunk, then closes the session (clears the `/read/current` pointer), parity with the Windows client. If a chunk can't upload even at sweep time it stays in `~/NWS/livecapture-mac/spool/<session>/` for manual replay via `replay-file.ts`.
