@@ -60,6 +60,30 @@ ffmpeg -list_devices true -f dshow -i dummy
 
 Ctrl+C ends the session cleanly (closes session, clears KV pointer).
 
+## `mac-client/capture.sh` — live mic capture on macOS
+
+For real-time capture during conversations on a Mac. ffmpeg/avfoundation, 60 s chunks at 16 kHz mono, uploads as the conversation runs, spool-buffered (failed uploads retry; audio is never lost).
+
+**Setup (Mac):**
+```bash
+# ffmpeg if not already
+brew install ffmpeg
+
+# token
+export LIVECAPTURE_TOKEN="$(op read 'op://Fleet-Shared/livecapture-ingest-token/credential')"
+
+# find your device indices
+ffmpeg -f avfoundation -list_devices true -i ""
+```
+
+**Run:**
+```bash
+# device 1 = built-in mic on the reference Mac; device 2 = Teams virtual audio
+./tools/mac-client/capture.sh 1 "wally-followup" work
+```
+
+Ctrl+C ends the session cleanly — final sweep ships the last partial chunk, then closes the session (clears the `/read/current` pointer), parity with the Windows client. If a chunk can't upload even at sweep time it stays in `~/NWS/livecapture-mac/spool/<session>/` for manual replay via `replay-file.ts`.
+
 ## Reading the transcripts back
 
 ```bash
