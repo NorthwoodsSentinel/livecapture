@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# livecapture Mac client v0.3 (CeeCee, 2026-06-07) — API shape VERIFIED live (v0.1 smoke mac-client-smoke-1780862320; v0.2 final-sweep + clean end-session; v0.3 device-by-NAME)
+# livecapture Mac client v0.4 (CeeCee, 2026-06-07) — API shape VERIFIED live (v0.1 smoke mac-client-smoke-1780862320; v0.2 final-sweep + clean end-session; v0.3 device-by-NAME; v0.4 auto output-flip)
 # Usage: capture.sh [device_name] [session_label] [sensitivity]
 # v0.3: avfoundation indices SHUFFLE when devices come and go (XM6 connect reordered them 6/7;
 #   BlackHole install reordered them again post-reboot — the 16:32 smoke recorded a Zoom device's
@@ -35,6 +35,24 @@ else
     exit 1
   }
 fi
+
+# v0.4: system-audio capture only works when output routes through the Multi-Output tap.
+# Flip automatically on start, restore the user's previous output on ANY exit (Ctrl-C, crash,
+# normal end) — volume keys come back without anyone remembering to switch. Mic-only capture
+# leaves the output alone.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"   # script-relative, never hardcoded
+RESTORE_OUTPUT=""
+if [[ "$DEVICE_ARG" == *"BlackHole"* || "$DEVICE_ARG" == "NWS Aggregate" ]]; then
+  prev=$(swift "$SCRIPT_DIR/set-output.swift" "NWS Multi-Output" | sed -n 's/^previous: //p') || {
+    echo "could not flip output to NWS Multi-Output — run: swift $SCRIPT_DIR/setup-audio-devices.swift" >&2
+    exit 1
+  }
+  if [ "$prev" != "NWS Multi-Output" ]; then
+    RESTORE_OUTPUT="$prev"
+    echo "output → NWS Multi-Output (will restore to \"$prev\" on exit)"
+  fi
+fi
+trap '[ -n "$RESTORE_OUTPUT" ] && swift "$SCRIPT_DIR/set-output.swift" "$RESTORE_OUTPUT" >/dev/null 2>&1 && echo "output restored: $RESTORE_OUTPUT" || true' EXIT
 BASE="${LIVECAPTURE_BASE:-https://livecapture.robert-chuvala.workers.dev}"
 : "${LIVECAPTURE_TOKEN:?export LIVECAPTURE_TOKEN first (op read 'op://Fleet-Shared/livecapture-ingest-token/credential')}"
 SESSION="$(uuidgen | tr 'A-Z' 'a-z')"

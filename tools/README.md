@@ -78,10 +78,11 @@ ffmpeg -f avfoundation -list_devices true -i ""
 # system-audio capture: install BlackHole 2ch (https://existential.audio/blackhole/, reboot to
 # register the driver), then create the two composite devices (idempotent, persists across reboots):
 swift ./tools/mac-client/setup-audio-devices.swift
-#   NWS Multi-Output = speakers+BlackHole → set as system OUTPUT during calls (hear while capturing)
+#   NWS Multi-Output = speakers+BlackHole → system OUTPUT during capture (hear while capturing)
 #   NWS Aggregate    = mic+BlackHole      → capture INPUT for both sides of a call
-swift ./tools/mac-client/set-output.swift "NWS Multi-Output"      # flip output (volume keys won't work on it)
-swift ./tools/mac-client/set-output.swift "MacBook Air Speakers"  # flip back after the call
+# capture.sh flips output to NWS Multi-Output automatically when capturing system audio and
+# restores your previous output on exit (any exit — Ctrl-C, crash, normal end). Manual flip,
+# if you ever need it: swift ./tools/mac-client/set-output.swift "<device name>"
 ```
 
 **Run:**
