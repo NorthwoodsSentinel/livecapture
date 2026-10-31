@@ -20,9 +20,9 @@ export LIVECAPTURE_TOKEN="$(op item get 'livecapture-ingest-token' --vault Fleet
 # Smoke test against a small file
 bun run tools/replay-file.ts /path/to/voice-memo.m4a --label "smoke-real-audio"
 
-# PLAUD recording from G: drive, full pipeline, close session at end
-bun run tools/replay-file.ts "/mnt/g/My Drive/00_INBOX_CAPTURE/2026-06-05-wally-meeting.mp3" \
-  --label "wally-2026-06-05" \
+# A long recording (path with spaces is fine: it is passed as one argv entry), full pipeline, close session at end
+bun run tools/replay-file.ts "/path/to/My Recordings/2026-06-05-team-meeting.mp3" \
+  --label "team-2026-06-05" \
   --sensitivity work \
   --consented true \
   --chunk-sec 20 \
