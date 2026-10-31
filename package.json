@@ -19,5 +19,8 @@
     "d1:migrate": "wrangler d1 migrations apply livecapture-db --remote",
     "kv:create": "wrangler kv namespace create SESSION_STATE",
     "r2:create": "wrangler r2 bucket create livecapture-raw-audio"
+  },
+  "engines": {
+    "node": ">=22.0.0"
   }
 }
