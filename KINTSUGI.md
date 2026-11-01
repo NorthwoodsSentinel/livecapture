@@ -11,3 +11,4 @@ and the reviewed SHA. Security repairs describe the class of fix, never how to e
 | Date | What broke | How it was mended | Mended by / reviewed by | Gold line |
 |---|---|---|---|---|
 | 2026-10-31 | The toolchain lockfile held known-vulnerable packages. | Refreshed the lock; wrangler 4.156, workers-types v5, Node 22 (c1c8019, d245616, 2e6c247). | CeeCee / Codex audit of d245616: fail (HIGH no runtime tests, non-security, ticketed; MEDIUM peer range, fixed in 2e6c247) | old threads frayed where no one was pulling — / rewoven now, the pattern held. |
+| 2026-10-31 | The tool docs carried a maintainer's drive path, a named person's recording, and a private env-file location. | Replaced with neutral examples; the error message names the variables, not a file. | CeeCee / review pending (docs and an error string; not in the Codex class) | the map still named a stranger's room — / now it shows only the shape of the road. |

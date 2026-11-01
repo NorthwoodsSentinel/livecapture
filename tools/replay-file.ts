@@ -69,9 +69,11 @@ function die(msg: string): never {
   process.exit(2);
 }
 
+// kintsugi: the map still named a stranger's room —
+//   now it shows only the shape of the road.
 function env(name: string): string {
   const v = process.env[name];
-  if (!v) die(`required env var ${name} is not set (source /root/.env and set LIVECAPTURE_URL + LIVECAPTURE_TOKEN)`);
+  if (!v) die(`required env var ${name} is not set (set LIVECAPTURE_URL and LIVECAPTURE_TOKEN in your environment)`);
   return v;
 }
 
