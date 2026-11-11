@@ -60,6 +60,42 @@ ffmpeg -list_devices true -f dshow -i dummy
 
 Ctrl+C ends the session cleanly (closes session, clears KV pointer).
 
+## `mac-client/capture.sh` — live mic capture on macOS
+
+For real-time capture during conversations on a Mac. ffmpeg/avfoundation, 60 s chunks at 16 kHz mono, uploads as the conversation runs, spool-buffered (failed uploads retry; audio is never lost).
+
+**Setup (Mac):**
+```bash
+# ffmpeg if not already
+brew install ffmpeg
+
+# token
+export LIVECAPTURE_TOKEN="$(op read 'op://Fleet-Shared/livecapture-ingest-token/credential')"
+
+# see your device names
+ffmpeg -f avfoundation -list_devices true -i ""
+
+# system-audio capture: install BlackHole 2ch (https://existential.audio/blackhole/, reboot to
+# register the driver), then create the two composite devices (idempotent, persists across reboots):
+swift ./tools/mac-client/setup-audio-devices.swift
+#   NWS Multi-Output = speakers+BlackHole → system OUTPUT during capture (hear while capturing)
+#   NWS Aggregate    = mic+BlackHole      → capture INPUT for both sides of a call
+# capture.sh flips output to NWS Multi-Output automatically when capturing system audio and
+# restores your previous output on exit (any exit — Ctrl-C, crash, normal end). Manual flip,
+# if you ever need it: swift ./tools/mac-client/set-output.swift "<device name>"
+```
+
+**Run:**
+```bash
+# select device by exact NAME — avfoundation indices SHUFFLE when devices come/go
+# (a Bluetooth headset connecting or a driver install reorders them; a raw index can
+# silently land on the wrong device and record silence)
+./tools/mac-client/capture.sh "MacBook Air Microphone" "wally-followup" work  # mic only
+./tools/mac-client/capture.sh "NWS Aggregate" "wally-followup" work          # full call, both sides
+```
+
+Ctrl+C ends the session cleanly — final sweep ships the last partial chunk, then closes the session (clears the `/read/current` pointer), parity with the Windows client. If a chunk can't upload even at sweep time it stays in `~/NWS/livecapture-mac/spool/<session>/` for manual replay via `replay-file.ts`.
+
 ## Reading the transcripts back
 
 ```bash
