@@ -36,9 +36,7 @@ export async function handleReadCurrent(request: Request, env: Env): Promise<Res
   const overLimit = showAll ? limit : Math.min(500, limit * 3);
   const rawSegs = session ? await recentSegments(env.CAPTURE_DB, session.id, overLimit) : [];
   const total = session ? await countSegments(env.CAPTURE_DB, session.id) : 0;
-  const { kept, filtered } = showAll
-    ? { kept: rawSegs, filtered: [] }
-    : partitionSegmentsByHallucination(rawSegs);
+  const { kept, filtered } = showAll ? { kept: rawSegs, filtered: [] } : partitionSegmentsByHallucination(rawSegs);
 
   const body: CurrentConversationResponse & { hallucinations_filtered?: number } = {
     session,
@@ -59,11 +57,7 @@ export async function handleReadSessions(request: Request, env: Env): Promise<Re
   return Response.json({ sessions, count: sessions.length });
 }
 
-export async function handleReadSessionById(
-  request: Request,
-  env: Env,
-  sessionId: string,
-): Promise<Response> {
+export async function handleReadSessionById(request: Request, env: Env, sessionId: string): Promise<Response> {
   requireBearer(request, env);
   if (request.method !== "GET") throw new HttpError(405, { error: "method_not_allowed", allow: "GET" });
 
@@ -103,9 +97,7 @@ export async function handleReadSearch(request: Request, env: Env): Promise<Resp
   // Over-fetch so the filter doesn't starve the visible result set.
   const overLimit = showAll ? limit : Math.min(500, limit * 3);
   const rawHits = await searchSegments(env.CAPTURE_DB, q, overLimit);
-  const { kept } = showAll
-    ? { kept: rawHits }
-    : partitionSegmentsByHallucination(rawHits);
+  const { kept } = showAll ? { kept: rawHits } : partitionSegmentsByHallucination(rawHits);
   const hits = kept.slice(0, limit);
 
   const body: SearchResponse & { ranked_by?: string } = {

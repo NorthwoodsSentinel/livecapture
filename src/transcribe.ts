@@ -1,11 +1,5 @@
 import type { Env, AudioChunk, TranscriptionPreference, TranscriptSegment } from "./types";
-import {
-  uuid,
-  nowIso,
-  getAudio,
-  insertSegment,
-  nextSegmentSequence,
-} from "./lib";
+import { uuid, nowIso, getAudio, insertSegment, nextSegmentSequence } from "./lib";
 
 // Workers AI Whisper output shape (varies a little across model versions).
 interface WhisperResult {
@@ -26,11 +20,7 @@ const WHISPER_MODEL = "@cf/openai/whisper";
  * MUST NOT reach this function; defense-in-depth refusal here catches any
  * future caller that forgets the dispatch gate.
  */
-export async function transcribeChunk(
-  env: Env,
-  chunk: AudioChunk,
-  preference: TranscriptionPreference,
-): Promise<void> {
+export async function transcribeChunk(env: Env, chunk: AudioChunk, preference: TranscriptionPreference): Promise<void> {
   if (preference === "local-only") {
     console.warn(`[transcribe] refused chunk ${chunk.id} — session preference is local-only`);
     return;
@@ -44,9 +34,9 @@ export async function transcribeChunk(
 
   let result: WhisperResult;
   try {
-    result = await env.AI.run(WHISPER_MODEL, {
+    result = (await env.AI.run(WHISPER_MODEL, {
       audio: [...new Uint8Array(bytes)],
-    }) as unknown as WhisperResult;
+    })) as unknown as WhisperResult;
   } catch (e) {
     console.error(`[transcribe] AI.run failed for chunk ${chunk.id}: ${(e as Error).message}`);
     return;

@@ -64,7 +64,8 @@ async function ensureSession(env: Env, request: Request, q: IngestQuery): Promis
   if (!label || !sensitivityRaw || !client_id) {
     throw new HttpError(400, {
       error: "session_metadata_required_on_first_chunk",
-      detail: "Send X-Session-Label, X-Session-Sensitivity, X-Client-Id, X-Session-Consented headers when creating a new session.",
+      detail:
+        "Send X-Session-Label, X-Session-Sensitivity, X-Client-Id, X-Session-Consented headers when creating a new session.",
     });
   }
   if (!isValidSensitivity(sensitivityRaw)) {
@@ -98,11 +99,7 @@ async function ensureSession(env: Env, request: Request, q: IngestQuery): Promis
   return session;
 }
 
-export async function handleIngest(
-  request: Request,
-  env: Env,
-  ctx: ExecutionContext,
-): Promise<Response> {
+export async function handleIngest(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
   requireBearer(request, env);
 
   if (request.method !== "POST") {
@@ -185,11 +182,7 @@ export async function handleIngest(
   );
 }
 
-export async function handleEndSession(
-  request: Request,
-  env: Env,
-  sessionId: string,
-): Promise<Response> {
+export async function handleEndSession(request: Request, env: Env, sessionId: string): Promise<Response> {
   requireBearer(request, env);
   if (request.method !== "POST") {
     throw new HttpError(405, { error: "method_not_allowed", allow: "POST" });

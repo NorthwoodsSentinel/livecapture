@@ -25,5 +25,8 @@
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "noPropertyAccessFromIndexSignature": false
-  }
+  },
+  // Name source directories explicitly: with allowJs on, a bare default would also typecheck generated
+  // output such as coverage/ (AGENTS.md "Build output is never a gate target").
+  "include": ["src", "tools", "test", "scripts", "worker-configuration.d.ts", "vitest.config.ts"]
 }
