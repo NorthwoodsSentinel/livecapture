@@ -11,7 +11,10 @@ import type {
 } from "./types";
 
 export class HttpError extends Error {
-  constructor(public status: number, public body: string | object) {
+  constructor(
+    public status: number,
+    public body: string | object,
+  ) {
     super(typeof body === "string" ? body : JSON.stringify(body));
   }
 }
@@ -55,10 +58,7 @@ const sessionCols =
   "id, label, sensitivity, transcription_preference, consented_recording, client_id, started_at, ended_at, status, notes";
 
 export async function getSession(db: D1Database, id: string): Promise<CaptureSession | null> {
-  const row = await db
-    .prepare(`SELECT ${sessionCols} FROM capture_sessions WHERE id = ?`)
-    .bind(id)
-    .first<RawSession>();
+  const row = await db.prepare(`SELECT ${sessionCols} FROM capture_sessions WHERE id = ?`).bind(id).first<RawSession>();
   return row ? rowToSession(row) : null;
 }
 
@@ -85,9 +85,7 @@ export async function insertSession(db: D1Database, s: CaptureSession): Promise<
 
 export async function closeSession(db: D1Database, id: string, endedAt: string): Promise<boolean> {
   const res = await db
-    .prepare(
-      `UPDATE capture_sessions SET ended_at = ?, status = 'closed' WHERE id = ? AND status = 'open'`,
-    )
+    .prepare(`UPDATE capture_sessions SET ended_at = ?, status = 'closed' WHERE id = ? AND status = 'open'`)
     .bind(endedAt, id)
     .run();
   return (res.meta?.changes ?? 0) > 0;
@@ -136,7 +134,19 @@ export async function insertSegment(db: D1Database, s: TranscriptSegment): Promi
         (id, session_id, chunk_id, sequence, start_ms, end_ms, text, speaker, engine, confidence, transcribed_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
-    .bind(s.id, s.session_id, s.chunk_id, s.sequence, s.start_ms, s.end_ms, s.text, s.speaker, s.engine, s.confidence, s.transcribed_at)
+    .bind(
+      s.id,
+      s.session_id,
+      s.chunk_id,
+      s.sequence,
+      s.start_ms,
+      s.end_ms,
+      s.text,
+      s.speaker,
+      s.engine,
+      s.confidence,
+      s.transcribed_at,
+    )
     .run();
 }
 
@@ -152,10 +162,7 @@ export async function nextSegmentSequence(db: D1Database, sessionId: string): Pr
  * Chunks belonging to local-only sessions that have no transcript segment yet.
  * The local-Whisper runner polls this to find work.
  */
-export async function untranscribedLocalChunks(
-  db: D1Database,
-  limit: number,
-): Promise<AudioChunk[]> {
+export async function untranscribedLocalChunks(db: D1Database, limit: number): Promise<AudioChunk[]> {
   const res = await db
     .prepare(
       `SELECT c.id, c.session_id, c.sequence, c.r2_key, c.size_bytes, c.duration_ms, c.recorded_at, c.mime_type
@@ -184,11 +191,7 @@ export async function segmentExistsForChunkAndSequence(
   return !!row;
 }
 
-export async function recentSegments(
-  db: D1Database,
-  sessionId: string,
-  limit: number,
-): Promise<TranscriptSegment[]> {
+export async function recentSegments(db: D1Database, sessionId: string, limit: number): Promise<TranscriptSegment[]> {
   const res = await db
     .prepare(
       `SELECT id, session_id, chunk_id, sequence, start_ms, end_ms, text, speaker, engine, confidence, transcribed_at
@@ -321,9 +324,7 @@ export function isLikelyHallucination(rawText: string): boolean {
   return false;
 }
 
-export function partitionSegmentsByHallucination<T extends { text: string }>(
-  segs: T[],
-): { kept: T[]; filtered: T[] } {
+export function partitionSegmentsByHallucination<T extends { text: string }>(segs: T[]): { kept: T[]; filtered: T[] } {
   const kept: T[] = [];
   const filtered: T[] = [];
   for (const s of segs) (isLikelyHallucination(s.text) ? filtered : kept).push(s);
@@ -348,12 +349,7 @@ export async function clearActivePointer(kv: KVNamespace): Promise<void> {
 
 // ── R2 ───────────────────────────────────────────────────────────────────────
 
-export async function putAudio(
-  bucket: R2Bucket,
-  key: string,
-  bytes: ArrayBuffer,
-  mime: string,
-): Promise<number> {
+export async function putAudio(bucket: R2Bucket, key: string, bytes: ArrayBuffer, mime: string): Promise<number> {
   await bucket.put(key, bytes, { httpMetadata: { contentType: mime } });
   return bytes.byteLength;
 }
@@ -371,9 +367,7 @@ export async function getAudio(bucket: R2Bucket, key: string): Promise<ArrayBuff
 // Engine selection is driven by `transcription_preference`, not by sensitivity.
 // Sensitivity still drives retention, sharing, and audit posture upstream.
 
-export function transcriptionEngineFor(
-  preference: TranscriptionPreference,
-): "workers-ai" | "local-whisper" {
+export function transcriptionEngineFor(preference: TranscriptionPreference): "workers-ai" | "local-whisper" {
   return preference === "local-only" ? "local-whisper" : "workers-ai";
 }
 

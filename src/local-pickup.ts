@@ -59,11 +59,7 @@ export async function handleLocalPickupQueue(request: Request, env: Env): Promis
  * Streams the raw audio bytes from R2 to the local runner.
  * Same auth as the queue endpoint.
  */
-export async function handleLocalPickupAudio(
-  request: Request,
-  env: Env,
-  chunkId: string,
-): Promise<Response> {
+export async function handleLocalPickupAudio(request: Request, env: Env, chunkId: string): Promise<Response> {
   requireLocalPickupBearer(request, env);
   if (request.method !== "GET") throw new HttpError(405, { error: "method_not_allowed", allow: "GET" });
 

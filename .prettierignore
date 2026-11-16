@@ -1,0 +1,10 @@
+# Build output, installs and generated files are never a gate target (AGENTS.md).
+node_modules/
+.wrangler/
+coverage/
+dist/
+.scratch/
+bun.lock
+worker-configuration.d.ts
+# Prose is out of the format scope: prettier rewrites Markdown (list markers, escapes).
+*.md

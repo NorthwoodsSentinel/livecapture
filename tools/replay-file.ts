@@ -34,7 +34,10 @@ interface Args {
 function parseArgs(argv: string[]): Args {
   const positional = argv.filter((a) => !a.startsWith("--"));
   const path = positional[0];
-  if (!path) die(`usage: replay-file <audio-path> [--label NAME] [--sensitivity work|public|sensitive] [--preference hosted-ok|local-only] [--consented true|false] [--chunk-sec N] [--end-session] [--dry-run]`);
+  if (!path)
+    die(
+      `usage: replay-file <audio-path> [--label NAME] [--sensitivity work|public|sensitive] [--preference hosted-ok|local-only] [--consented true|false] [--chunk-sec N] [--end-session] [--dry-run]`,
+    );
   const flag = (k: string) => argv.includes(`--${k}`);
   const val = (k: string, def: string) => {
     const i = argv.indexOf(`--${k}`);
@@ -54,7 +57,10 @@ function parseArgs(argv: string[]): Args {
   }
   return {
     path,
-    label: val("label", `replay-${path.split("/").pop() ?? "file"}-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}`),
+    label: val(
+      "label",
+      `replay-${path.split("/").pop() ?? "file"}-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}`,
+    ),
     sensitivity,
     preference,
     consented: val("consented", "false") === "true",
@@ -93,9 +99,12 @@ function run(cmd: string, args: string[]): Promise<{ stdout: string; stderr: str
 
 async function probeDuration(path: string): Promise<number> {
   const { stdout } = await run("ffprobe", [
-    "-v", "error",
-    "-show_entries", "format=duration",
-    "-of", "default=noprint_wrappers=1:nokey=1",
+    "-v",
+    "error",
+    "-show_entries",
+    "format=duration",
+    "-of",
+    "default=noprint_wrappers=1:nokey=1",
     path,
   ]);
   return Math.ceil(Number(stdout.trim()));
@@ -105,13 +114,20 @@ async function chunkAudio(srcPath: string, outDir: string, chunkSec: number): Pr
   // Re-encode to a Whisper-friendly format (16kHz mono WAV) for consistency, then split.
   await run("ffmpeg", [
     "-y",
-    "-i", srcPath,
-    "-ac", "1",
-    "-ar", "16000",
-    "-f", "segment",
-    "-segment_time", String(chunkSec),
-    "-reset_timestamps", "1",
-    "-c:a", "pcm_s16le",
+    "-i",
+    srcPath,
+    "-ac",
+    "1",
+    "-ar",
+    "16000",
+    "-f",
+    "segment",
+    "-segment_time",
+    String(chunkSec),
+    "-reset_timestamps",
+    "1",
+    "-c:a",
+    "pcm_s16le",
     join(outDir, "chunk_%05d.wav"),
   ]);
   const entries = (await readdir(outDir)).filter((n) => n.startsWith("chunk_") && n.endsWith(".wav")).sort();
@@ -139,7 +155,7 @@ async function postChunk(opts: {
   const res = await fetch(`${opts.url}/ingest?${qs}`, {
     method: "POST",
     headers: {
-      "authorization": `Bearer ${opts.token}`,
+      authorization: `Bearer ${opts.token}`,
       "content-type": "audio/wav",
       ...opts.headers,
     },
@@ -149,10 +165,14 @@ async function postChunk(opts: {
   return { ok: res.ok, status: res.status, body };
 }
 
-async function endSession(opts: { url: string; token: string; sessionId: string }): Promise<{ ok: boolean; status: number; body: unknown }> {
+async function endSession(opts: {
+  url: string;
+  token: string;
+  sessionId: string;
+}): Promise<{ ok: boolean; status: number; body: unknown }> {
   const res = await fetch(`${opts.url}/sessions/${opts.sessionId}/end`, {
     method: "POST",
-    headers: { "authorization": `Bearer ${opts.token}` },
+    headers: { authorization: `Bearer ${opts.token}` },
   });
   const body = (await res.json().catch(() => ({}))) as unknown;
   return { ok: res.ok, status: res.status, body };
@@ -186,9 +206,8 @@ async function main(): Promise<void> {
   }
 
   const workDir = await mkdtemp(join(tmpdir(), "livecapture-replay-"));
-  let chunks: string[] = [];
   try {
-    chunks = await chunkAudio(args.path, workDir, args.chunkSec);
+    const chunks = await chunkAudio(args.path, workDir, args.chunkSec);
     if (chunks.length === 0) die(`ffmpeg produced no chunks (silent file? unsupported format?)`);
     console.log(`  chunks:      ${chunks.length}`);
     console.log("");
@@ -219,9 +238,10 @@ async function main(): Promise<void> {
       });
       const status = result.ok ? "OK" : "FAIL";
       const body = result.body as { chunk_id?: string; transcription?: string };
-      const summary = result.ok && body.chunk_id
-        ? ` chunk_id=${body.chunk_id.slice(0, 8)} ${body.transcription ?? ""}`
-        : ` ${JSON.stringify(result.body).slice(0, 160)}`;
+      const summary =
+        result.ok && body.chunk_id
+          ? ` chunk_id=${body.chunk_id.slice(0, 8)} ${body.transcription ?? ""}`
+          : ` ${JSON.stringify(result.body).slice(0, 160)}`;
       console.log(`  [${i + 1}/${chunks.length}] HTTP ${result.status} ${status}${summary}`);
       if (!result.ok) {
         console.error(`  aborting at chunk ${i} — server rejected upload`);
@@ -236,12 +256,16 @@ async function main(): Promise<void> {
     } else {
       console.log("");
       console.log(`  session left OPEN. Close manually with:`);
-      console.log(`    curl -X POST "$LIVECAPTURE_URL/sessions/${sessionId}/end" -H "Authorization: Bearer $LIVECAPTURE_TOKEN"`);
+      console.log(
+        `    curl -X POST "$LIVECAPTURE_URL/sessions/${sessionId}/end" -H "Authorization: Bearer $LIVECAPTURE_TOKEN"`,
+      );
     }
 
     console.log("");
     console.log(`  read transcripts when ready:`);
-    console.log(`    curl "$LIVECAPTURE_URL/read/sessions/${sessionId}" -H "Authorization: Bearer $LIVECAPTURE_TOKEN" | jq`);
+    console.log(
+      `    curl "$LIVECAPTURE_URL/read/sessions/${sessionId}" -H "Authorization: Bearer $LIVECAPTURE_TOKEN" | jq`,
+    );
   } finally {
     await rm(workDir, { recursive: true, force: true });
   }
