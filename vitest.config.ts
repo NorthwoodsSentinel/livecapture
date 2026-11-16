@@ -1,4 +1,4 @@
-// Test and coverage config. The coverage bar is the source's (Cliff Hall's inspector): >= 90 on all four
+// Test and coverage config. The coverage bar is the upstream inspector's: >= 90 on all four
 // dimensions, per file, enforced here and therefore in `bun run test` and CI. Never lower it to pass;
 // see AGENTS.md "Always test new or modified code".
 import { defineConfig } from "vitest/config";
