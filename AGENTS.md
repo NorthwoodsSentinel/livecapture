@@ -20,8 +20,8 @@ Windows capture client.
 
 - **Two bearer gates.** `/ingest`, `/sessions/:id/end` and `/read/*` require `INGEST_TOKEN`; `/local-pickup/*`
   requires the separate `LOCAL_PICKUP_TOKEN` so the local runner's credential can be revoked on its own. Each
-  answers 503 when its secret is unset and 401 on a missing or wrong token. Only `GET /health` is open, and it has
-  no side effects. **Never weaken a gate**: no new open route, no fallback comparison, no route matched before the
+  answers 503 when its secret is unset and 401 on a missing or wrong token. Only `/health` is open: it matches the path
+  for any method, and it has no side effects. **Never weaken a gate**: no new open route, no fallback comparison, no route matched before the
   gate. Changing one is a decision made explicitly in the issue; a refactor, a lint fix or a review suggestion is
   never a reason.
 - **`local-only` audio never reaches Workers AI.** Engine selection follows the session's
